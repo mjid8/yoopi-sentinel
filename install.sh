@@ -236,7 +236,15 @@ offer_service_install() {
     echo ""
     if ask_yes_no "Install Sentinel as a systemd service (auto-start on boot)?" y; then
         echo ""
-        sentinel install
+        if sudo -n true 2>/dev/null; then
+            sudo sentinel install
+        else
+            warn "This step requires sudo to write the systemd service file."
+            info "Run the following command to complete the setup:"
+            echo ""
+            echo "    sudo sentinel install"
+            echo ""
+        fi
     else
         ok "Skipping systemd install."
         info "You can set it up later with:  sudo sentinel install"

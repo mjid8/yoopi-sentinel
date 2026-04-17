@@ -217,19 +217,31 @@ def _start_daemon(config_path):
 
 
 @cli.command("install")
-@click.option("--config", "-c", default="/etc/sentinel/sentinel.yml",
-              help="Path to config file the service will use")
+@click.option("--config", "-c", default=None,
+              help="Path to config file the service will use (default: ~/sentinel.yml)")
 def install(config):
     """Install Sentinel as a systemd service."""
     click.echo("\n🔧 Sentinel — systemd installer\n")
     has_systemd = _has_systemd()
+
+    # Resolve the real user (handle `sudo sentinel install`)
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user:
+        current_user = sudo_user
+        home_dir = os.path.expanduser(f"~{sudo_user}")
+    else:
+        try:
+            current_user = subprocess.check_output(["whoami"], text=True).strip()
+        except Exception:
+            current_user = os.environ.get("USER", "root")
+        home_dir = os.path.expanduser("~")
+
+    if config is None:
+        config = os.path.join(home_dir, "sentinel.yml")
+
     if not has_systemd:
         _print_manual_instructions(config)
         return
-    try:
-        current_user = subprocess.check_output(["whoami"], text=True).strip()
-    except Exception:
-        current_user = os.environ.get("USER", "root")
     sentinel_bin = _which("sentinel")
     if not sentinel_bin:
         click.echo("❌ Could not find the 'sentinel' binary in PATH.")
@@ -241,7 +253,7 @@ def install(config):
     click.echo(f"  Service: {_SERVICE_PATH}\n")
     if not os.path.exists(config):
         click.echo(f"⚠️  Config file not found at {config}")
-        click.echo(f"   Create it first with 'sentinel init', then move it to {config}")
+        click.echo(f"   Run 'sentinel init' first to create it, then re-run this command.")
         click.echo(f"   Continuing to write the service unit anyway...\n")
     service_content = f"""[Unit]
 Description=Yoopi Sentinel — Server Monitoring
@@ -252,6 +264,7 @@ StartLimitBurst=3
 [Service]
 Type=simple
 User={current_user}
+WorkingDirectory={home_dir}
 ExecStart={sentinel_bin} start --config {config}
 Restart=on-failure
 RestartSec=10
