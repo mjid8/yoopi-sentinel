@@ -211,11 +211,8 @@ run_init() {
     step "Step 6/7  Configure"
 
     if [ -f sentinel.yml ]; then
-        warn "sentinel.yml already exists in current directory."
-        if ! ask_yes_no "Re-run 'sentinel init' to overwrite it?"; then
-            ok "Keeping existing sentinel.yml"
-            return
-        fi
+        ok "Existing config found, skipping init — run 'sentinel init' manually to reconfigure"
+        return
     fi
 
     echo ""
@@ -237,7 +234,7 @@ offer_service_install() {
     fi
 
     echo ""
-    if ask_yes_no "Install Sentinel as a systemd service (auto-start on boot)?"; then
+    if ask_yes_no "Install Sentinel as a systemd service (auto-start on boot)?" y; then
         echo ""
         sentinel install
     else
@@ -247,9 +244,19 @@ offer_service_install() {
 }
 
 # ── Helper: yes/no prompt ─────────────────────────────────────────
+# Usage: ask_yes_no "prompt" [non_interactive_default]
+#   non_interactive_default: "y" or "n" (default "n")
+#   When stdin is not a terminal the default is applied automatically.
 ask_yes_no() {
     local prompt="$1"
+    local noterm_default="${2:-n}"
     local reply
+
+    if [ ! -t 0 ]; then
+        echo -e "${CYAN}  ?${NC}  ${prompt} [y/n]  → ${noterm_default} (non-interactive)"
+        [ "$noterm_default" = "y" ] && return 0 || return 1
+    fi
+
     while true; do
         echo -en "${CYAN}  ?${NC}  ${prompt} [y/n] "
         read -r reply

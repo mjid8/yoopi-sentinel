@@ -5,6 +5,37 @@ import subprocess
 import requests
 import yaml
 
+
+def _ask_overwrite(timeout=10):
+    """Ask once; default to n on EOF or no answer within timeout seconds."""
+    sys.stdout.write(
+        f"sentinel.yml already exists. Overwrite? [y/N] (auto-no in {timeout}s): "
+    )
+    sys.stdout.flush()
+    try:
+        import signal
+
+        def _alarm(signum, frame):
+            raise TimeoutError()
+
+        old = signal.signal(signal.SIGALRM, _alarm)
+        signal.alarm(timeout)
+        try:
+            reply = input()
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old)
+        return reply.strip().lower() in ("y", "yes")
+    except (TimeoutError, EOFError):
+        sys.stdout.write("\n")
+        return False
+    except AttributeError:
+        # SIGALRM unavailable (non-Unix); single input(), default n on EOF
+        try:
+            return input().strip().lower() in ("y", "yes")
+        except EOFError:
+            return False
+
 _PID_FILE     = "/tmp/sentinel.pid"
 _SERVICE_NAME = "sentinel"
 _SERVICE_PATH = f"/etc/systemd/system/{_SERVICE_NAME}.service"
@@ -20,6 +51,10 @@ def cli():
 @cli.command()
 def init():
     """Setup wizard — creates your sentinel.yml config."""
+    if os.path.exists("sentinel.yml"):
+        if not _ask_overwrite():
+            click.echo("Keeping existing sentinel.yml.")
+            return
     click.echo("\n☀️  Welcome to Yoopi Sentinel Setup\n")
     click.echo("─" * 40)
     name  = click.prompt("Server name (e.g. API-Server, DB-Server)", default="My-Server")
