@@ -240,7 +240,44 @@ offer_service_install() {
     if ask_yes_no "Install Sentinel as a systemd service (auto-start on boot)?" y; then
         echo ""
         if sudo -n true 2>/dev/null; then
-            sudo "$SENTINEL_BIN" install
+            info "Writing /etc/systemd/system/sentinel.service..."
+            sudo tee /etc/systemd/system/sentinel.service > /dev/null << EOF
+[Unit]
+Description=Yoopi Sentinel — Server Monitoring
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$HOME
+ExecStart=$SENTINEL_BIN start
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+            ok "Service file written"
+            info "Reloading systemd daemon..."
+            sudo systemctl daemon-reload
+            ok "Done"
+            info "Enabling sentinel on boot..."
+            sudo systemctl enable sentinel
+            ok "Done"
+            info "Starting sentinel..."
+            sudo systemctl start sentinel
+            ok "Done"
+            echo ""
+            sudo systemctl status sentinel --no-pager
+            echo ""
+            ok "Sentinel is running as a system service."
+            info "Logs:    journalctl -u sentinel -f"
+            info "Stop:    systemctl stop sentinel"
+            info "Restart: systemctl restart sentinel"
         else
             warn "This step requires sudo to write the systemd service file."
             info "Run the following command to complete the setup:"
