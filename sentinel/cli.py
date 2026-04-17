@@ -126,7 +126,6 @@ def start(config):
     from sentinel import config as cfg_loader
     from sentinel.agent import Agent
 
-    logging.setup = True
     import logging
     logging.basicConfig(
         level=logging.INFO,
