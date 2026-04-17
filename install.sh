@@ -221,7 +221,7 @@ run_init() {
     echo ""
     info "Launching interactive setup wizard..."
     echo ""
-    sentinel init
+    "$SENTINEL_BIN" init
 }
 
 # ── Step 7 — systemd service ─────────────────────────────────────
@@ -342,6 +342,8 @@ main() {
     echo -e "${BOLD}${CYAN}  ☀   Yoopi Sentinel — Installer${NC}"
     echo -e "  ${CYAN}https://github.com/mjid8/yoopi-sentinel${NC}"
     echo ""
+
+    export PATH="$HOME/.local/bin:$PATH"
 
     detect_os
     info "Detected OS: ${OS_NAME}  |  Package manager: ${PKG_MGR}"
