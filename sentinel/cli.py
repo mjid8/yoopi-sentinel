@@ -55,9 +55,14 @@ def init():
         if not _ask_overwrite():
             click.echo("Keeping existing sentinel.yml.")
             return
+
     click.echo("\n☀️  Welcome to Yoopi Sentinel Setup\n")
     click.echo("─" * 40)
-    name  = click.prompt("Server name (e.g. API-Server, DB-Server)", default="My-Server")
+
+    # ── 1. Server name ────────────────────────────────────────────
+    name = click.prompt("Server name (e.g. API-Server, DB-Server)", default="My-Server")
+
+    # ── 2. Telegram ───────────────────────────────────────────────
     click.echo("\n📱 Telegram Bot Setup")
     click.echo("   1. Open Telegram → search @BotFather")
     click.echo("   2. Send: /newbot")
@@ -74,6 +79,8 @@ def init():
     except Exception:
         click.echo("❌ Could not reach Telegram. Check your internet connection.")
         sys.exit(1)
+
+    # ── 3. Chat ID ────────────────────────────────────────────────
     click.echo(f"\n📨 Now send ANY message to @{bot_name} on Telegram.")
     click.prompt("Press Enter when done", default="", show_default=False)
     click.echo("⏳ Looking for your chat ID...")
@@ -91,10 +98,190 @@ def init():
             chat_id = click.prompt("Could not auto-detect. Enter your chat ID manually")
     except Exception:
         chat_id = click.prompt("Could not auto-detect. Enter your chat ID manually")
-    click.echo("\n🔍 What's running on this server?")
-    has_docker = click.confirm("Docker containers?", default=False)
-    has_pg     = click.confirm("PostgreSQL?",        default=False)
-    has_mysql  = click.confirm("MySQL?",             default=False)
+
+    # ── 4. Resources ──────────────────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("📊 Resource Thresholds\n")
+
+    cpu_warn = click.prompt("  CPU warning %",  default=60, type=int)
+    cpu_crit = click.prompt("  CPU critical %", default=85, type=int)
+
+    ram_warn = click.prompt("  RAM warning %",  default=60, type=int)
+    ram_crit = click.prompt("  RAM critical %", default=85, type=int)
+
+    disk_warn = click.prompt("  Disk warning %",  default=75, type=int)
+    disk_crit = click.prompt("  Disk critical %", default=90, type=int)
+
+    has_temp = click.confirm("\n  Enable temperature monitoring?", default=True)
+
+    watch_procs = []
+    if click.confirm("\n  Watch specific processes?", default=False):
+        click.echo("  Enter process names one by one. Press Enter on empty line when done.")
+        while True:
+            p = click.prompt("  Process name", default="", show_default=False)
+            if not p.strip():
+                break
+            watch_procs.append(p.strip())
+
+    watch_logs = []
+    if click.confirm("\n  Watch log files for keywords?", default=False):
+        click.echo("  Enter log file paths one by one. Press Enter on empty path when done.")
+        while True:
+            log_path = click.prompt("  Log file path", default="", show_default=False)
+            if not log_path.strip():
+                break
+            keywords = []
+            click.echo(f"  Keywords to watch in {log_path.strip()} (Enter on empty when done):")
+            while True:
+                kw = click.prompt("    Keyword", default="", show_default=False)
+                if not kw.strip():
+                    break
+                keywords.append(kw.strip())
+            watch_logs.append({"path": log_path.strip(), "keywords": keywords})
+
+    # ── 5. Docker ─────────────────────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("🐳 Docker\n")
+    has_docker = click.confirm("  Docker running on this server?", default=False)
+    docker_containers = []
+    if has_docker:
+        click.echo("  Enter expected container names one by one. Press Enter on empty when done.")
+        while True:
+            c = click.prompt("  Container name", default="", show_default=False)
+            if not c.strip():
+                break
+            docker_containers.append(c.strip())
+
+    # ── 6. Redis ──────────────────────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("🔴 Redis\n")
+    has_redis = click.confirm("  Redis running on this server?", default=False)
+    redis_cfg = {}
+    if has_redis:
+        redis_host     = click.prompt("  Host",                               default="localhost")
+        redis_port     = click.prompt("  Port",                               default=6379, type=int)
+        redis_password = click.prompt("  Password (leave blank if none)",     default="", show_default=False)
+        redis_max_cli  = click.prompt("  Max clients threshold",              default=100, type=int)
+        redis_mem_warn = click.prompt("  Memory usage warning %",             default=80,  type=int)
+        redis_cfg = {
+            "host":           redis_host,
+            "port":           redis_port,
+            "max_clients":    redis_max_cli,
+            "memory_warning": redis_mem_warn,
+        }
+        if redis_password:
+            redis_cfg["password"] = redis_password
+
+    # ── 7. PostgreSQL ─────────────────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("🐘 PostgreSQL\n")
+    has_pg = click.confirm("  PostgreSQL running on this server?", default=False)
+    pg_cfg = {}
+    if has_pg:
+        pg_cfg = {
+            "host":            click.prompt("  Host",                       default="localhost"),
+            "port":            click.prompt("  Port",                       default=5432, type=int),
+            "database":        click.prompt("  Database",                   default="postgres"),
+            "user":            click.prompt("  User",                       default="postgres"),
+            "password":        click.prompt("  Password",                   hide_input=True),
+            "max_connections": click.prompt("  Max connections warning %",  default=80, type=int),
+        }
+
+    # ── 8. MySQL ──────────────────────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("🐬 MySQL\n")
+    has_mysql = click.confirm("  MySQL running on this server?", default=False)
+    mysql_cfg = {}
+    if has_mysql:
+        mysql_cfg = {
+            "host":            click.prompt("  Host",                       default="localhost"),
+            "port":            click.prompt("  Port",                       default=3306, type=int),
+            "database":        click.prompt("  Database",                   default="mysql"),
+            "user":            click.prompt("  User",                       default="root"),
+            "password":        click.prompt("  Password",                   hide_input=True),
+            "max_connections": click.prompt("  Max connections warning %",  default=80, type=int),
+        }
+
+    # ── 9. HTTP services ──────────────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("🌐 HTTP Service Monitoring\n")
+    services = []
+    if click.confirm("  Monitor any HTTP endpoints?", default=False):
+        svc_status  = click.prompt("  Expected HTTP status code", default=200, type=int)
+        svc_timeout = click.prompt("  Request timeout (seconds)", default=5,   type=int)
+        click.echo("  Enter service name + URL pairs. Press Enter on empty name when done.")
+        while True:
+            svc_name = click.prompt("  Service name", default="", show_default=False)
+            if not svc_name.strip():
+                break
+            svc_url = click.prompt("  URL")
+            services.append({
+                "name":            svc_name.strip(),
+                "url":             svc_url.strip(),
+                "expected_status": svc_status,
+                "timeout":         svc_timeout,
+            })
+
+    # ── 10. Custom script checks ──────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("⚙️  Custom Script Checks\n")
+    custom_checks = []
+    if click.confirm("  Add any custom script checks?", default=False):
+        click.echo("  Enter name + script path pairs. Press Enter on empty name when done.")
+        while True:
+            chk_name = click.prompt("  Check name", default="", show_default=False)
+            if not chk_name.strip():
+                break
+            chk_script = click.prompt("  Script path")
+            custom_checks.append({
+                "name":   chk_name.strip(),
+                "script": chk_script.strip(),
+            })
+
+    # ── 11. Alert cooldowns ───────────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("🔔 Alert Cooldowns\n")
+    warn_cooldown = click.prompt("  Warning cooldown (minutes)",  default=15, type=int)
+    crit_cooldown = click.prompt("  Critical cooldown (minutes)", default=5,  type=int)
+
+    # ── 12. Summary ───────────────────────────────────────────────
+    click.echo("\n" + "─" * 40)
+    click.echo("📋 Configuration Summary\n")
+    click.echo(f"  Server:      {name}")
+    click.echo(f"  Telegram:    @{bot_name}  (chat: {chat_id})")
+    click.echo(f"  CPU:         warn {cpu_warn}%  crit {cpu_crit}%")
+    click.echo(f"  RAM:         warn {ram_warn}%  crit {ram_crit}%")
+    click.echo(f"  Disk:        warn {disk_warn}%  crit {disk_crit}%")
+    click.echo(f"  Temperature: {'on' if has_temp else 'off'}")
+    click.echo(f"  Processes:   {len(watch_procs)} watched" if watch_procs else "  Processes:   none")
+    click.echo(f"  Logs:        {len(watch_logs)} file(s)" if watch_logs else "  Logs:        none")
+    if has_docker:
+        click.echo(f"  Docker:      on — {len(docker_containers)} container(s)")
+    else:
+        click.echo("  Docker:      off")
+    if has_redis:
+        click.echo(f"  Redis:       on ({redis_cfg['host']}:{redis_cfg['port']})")
+    else:
+        click.echo("  Redis:       off")
+    if has_pg:
+        click.echo(f"  PostgreSQL:  on ({pg_cfg['host']}:{pg_cfg['port']} / {pg_cfg['database']})")
+    else:
+        click.echo("  PostgreSQL:  off")
+    if has_mysql:
+        click.echo(f"  MySQL:       on ({mysql_cfg['host']}:{mysql_cfg['port']} / {mysql_cfg['database']})")
+    else:
+        click.echo("  MySQL:       off")
+    click.echo(f"  HTTP checks: {len(services)}")
+    click.echo(f"  Custom:      {len(custom_checks)}")
+    click.echo(f"  Cooldowns:   warning {warn_cooldown}m  critical {crit_cooldown}m")
+
+    # ── 13. Confirm ───────────────────────────────────────────────
+    click.echo("")
+    if not click.confirm("Save this configuration to sentinel.yml?", default=True):
+        click.echo("Aborted — nothing saved.")
+        return
+
+    # ── Build and write config ────────────────────────────────────
     config = {
         "name": name,
         "alerts": {
@@ -104,37 +291,59 @@ def init():
             },
             "levels": {
                 "info":     {"enabled": True},
-                "warning":  {"enabled": True, "cooldown": 900},
-                "critical": {"enabled": True, "cooldown": 300},
-            }
+                "warning":  {"enabled": True, "cooldown": warn_cooldown * 60},
+                "critical": {"enabled": True, "cooldown": crit_cooldown * 60},
+            },
         },
         "monitors": {
             "resources": {
-                "cpu":         {"enabled": True, "warning": 60, "critical": 85},
-                "ram":         {"enabled": True, "warning": 60, "critical": 85},
-                "disk":        {"enabled": True, "warning": 75, "critical": 90},
-                "temperature": {"enabled": True, "warning": 70, "critical": 85},
+                "cpu":         {"enabled": True, "warning": cpu_warn,  "critical": cpu_crit},
+                "ram":         {"enabled": True, "warning": ram_warn,  "critical": ram_crit},
+                "disk":        {"enabled": True, "warning": disk_warn, "critical": disk_crit},
+                "temperature": {"enabled": has_temp, "warning": 70, "critical": 85},
                 "network":     {"enabled": True, "check_dns": True, "check_outbound": True},
-                "processes":   {"enabled": True, "watch": []},
-                "logs":        {"enabled": True, "watch": []},
+                "processes":   {"enabled": bool(watch_procs), "watch": watch_procs},
+                "logs":        {"enabled": bool(watch_logs),  "watch": watch_logs},
             },
-            "docker":     {"enabled": has_docker},
-            "postgresql": {"enabled": has_pg},
-            "mysql":      {"enabled": has_mysql},
-            "services":   [],
-            "custom":     [],
-        }
+            "docker": {
+                "enabled":    has_docker,
+                "containers": docker_containers,
+            },
+            "redis": {
+                "enabled": has_redis,
+                **redis_cfg,
+            },
+            "postgresql": {
+                "enabled": has_pg,
+                **pg_cfg,
+            },
+            "mysql": {
+                "enabled": has_mysql,
+                **mysql_cfg,
+            },
+            "services": services,
+            "custom":   custom_checks,
+        },
     }
+
     with open("sentinel.yml", "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
     click.echo("\n✅ Config saved to sentinel.yml")
+
     extras = []
     if has_docker: extras.append("docker")
+    if has_redis:  extras.append("redis")
     if has_pg:     extras.append("postgresql")
     if has_mysql:  extras.append("mysql")
     if extras:
-        click.echo(f"\n📦 Install optional packages:")
-        click.echo(f"   pip install yoopi-sentinel[{','.join(extras)}]")
+        click.echo("\n📦 Install required extras:")
+        for extra in extras:
+            click.echo(f"   pip install yoopi-sentinel[{extra}]")
+        if len(extras) > 1:
+            click.echo(f"\n   Or all at once:")
+            click.echo(f"   pip install yoopi-sentinel[{','.join(extras)}]")
+
     click.echo("\n🚀 Run 'sentinel start' to begin monitoring!")
     click.echo("─" * 40 + "\n")
 
