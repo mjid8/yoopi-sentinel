@@ -1,0 +1,118 @@
+# ─────────────────────────────────────────
+# Yoopi Sentinel — Example Configuration
+# Run 'sentinel init' to generate this automatically
+# ─────────────────────────────────────────
+
+# Name shown in all Telegram alerts
+name: "API-Server"
+
+# ── Alert settings ─────────────────────
+alerts:
+  telegram:
+    token:   "YOUR_BOT_TOKEN"
+    chat_id: "YOUR_CHAT_ID"
+
+  levels:
+    info:
+      enabled: true                 # daily reports, recoveries
+    warning:
+      enabled: true
+      cooldown: 900                 # 15 min between same warning
+    critical:
+      enabled: true
+      cooldown: 300                 # 5 min between same critical
+
+# ── What to monitor ────────────────────
+monitors:
+
+  resources:
+    cpu:
+      enabled: true
+      warning:  60                  # alert at 60%
+      critical: 85                  # critical at 85%
+
+    ram:
+      enabled: true
+      warning:  60
+      critical: 85
+
+    disk:
+      enabled: true
+      warning:  75
+      critical: 90
+
+    temperature:
+      enabled: true
+      warning:  70                  # celsius
+      critical: 85
+
+    network:
+      enabled:          true
+      check_dns:        true        # verify DNS resolution works
+      check_outbound:   true        # verify internet is reachable
+
+    processes:
+      enabled: true
+      watch:
+        - name: "nginx"
+          required: true            # alert if not running
+        - name: "python3"
+          required: false           # just track it
+
+    logs:
+      enabled: true
+      watch:
+        - path: "/var/log/syslog"
+          patterns:
+            - keyword:   "Out of memory"
+              level:     critical
+            - keyword:   "ERROR"
+              level:     warning
+              threshold: 10         # only alert after 10 occurrences
+        - path: "/var/log/auth.log"
+          patterns:
+            - keyword:   "Failed password"
+              level:     warning
+              threshold: 5
+
+  # Requires: pip install yoopi-sentinel[docker]
+  docker:
+    enabled: false
+    expected:                       # alert if these containers go missing
+      - "my-api"
+      - "my-db"
+
+  # Requires: pip install yoopi-sentinel[postgresql]
+  postgresql:
+    enabled: false
+    service:          "postgresql"  # systemd service name
+    database:         "mydb"
+    max_connections:  80
+
+  # Requires: pip install yoopi-sentinel[mysql]
+  mysql:
+    enabled: false
+    service:  "mysql"
+    database: "mydb"
+
+  # HTTP health checks — no extra packages needed
+  services:
+    - name:            "My API"
+      url:             "http://localhost:8081/ready"
+      expected_status: 200
+      timeout:         5
+
+  # Custom checks — maximum flexibility
+  custom:
+    - name:  "My Script Check"
+      check: script
+      path:  "/home/user/mycheck.sh"
+      expected_exit_code: 0
+
+    - name:  "My Log File Exists"
+      check: file_exists
+      path:  "/var/myapp/app.log"
+
+    - name:  "Nginx Process"
+      check: process_running
+      name:  "nginx"
