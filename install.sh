@@ -194,10 +194,13 @@ ensure_path() {
 }
 
 # ── Step 5 — Verify binary ───────────────────────────────────────
+SENTINEL_BIN=""
+
 verify_binary() {
     step "Step 5/7  Verify"
     if command -v sentinel &>/dev/null; then
-        ok "sentinel binary found at: $(command -v sentinel)"
+        SENTINEL_BIN="$(command -v sentinel)"
+        ok "sentinel binary found at: ${SENTINEL_BIN}"
     else
         warn "sentinel not found in PATH after install."
         warn "This usually means pip installed it to a directory not yet in your PATH."
@@ -237,7 +240,7 @@ offer_service_install() {
     if ask_yes_no "Install Sentinel as a systemd service (auto-start on boot)?" y; then
         echo ""
         if sudo -n true 2>/dev/null; then
-            sudo sentinel install
+            sudo "$SENTINEL_BIN" install
         else
             warn "This step requires sudo to write the systemd service file."
             info "Run the following command to complete the setup:"

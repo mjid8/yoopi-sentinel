@@ -242,8 +242,8 @@ def install(config):
     if not has_systemd:
         _print_manual_instructions(config)
         return
-    sentinel_bin = _which("sentinel")
-    if not sentinel_bin:
+    sentinel_bin = _which("sentinel") or os.path.abspath(sys.argv[0])
+    if not sentinel_bin or not os.path.isfile(sentinel_bin):
         click.echo("❌ Could not find the 'sentinel' binary in PATH.")
         click.echo("   Make sure yoopi-sentinel is installed: pip install yoopi-sentinel")
         sys.exit(1)
