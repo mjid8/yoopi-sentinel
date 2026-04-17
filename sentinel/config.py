@@ -46,7 +46,6 @@ DEFAULT_CONFIG = {
 
 
 def deep_merge(base, override):
-    """Merge override into base dict recursively."""
     result = base.copy()
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
@@ -67,7 +66,6 @@ def load(path="sentinel.yml"):
 
     config = deep_merge(DEFAULT_CONFIG, user_config)
 
-    # Validate required fields
     token   = config["alerts"]["telegram"]["token"]
     chat_id = config["alerts"]["telegram"]["chat_id"]
 

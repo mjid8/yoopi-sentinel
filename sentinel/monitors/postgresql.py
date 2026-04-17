@@ -11,14 +11,11 @@ class PostgreSQLMonitor:
         self.name     = config["name"]
         self.alerter  = alerter
         self.verifier = Verifier()
-
-        self._was_up     = True
-        self._available  = False
-        self._conn       = None
-
+        self._was_up    = True
+        self._available = False
+        self._conn      = None
         if not self.cfg.get("enabled", False):
             return
-
         self._init()
 
     def _init(self):
@@ -34,16 +31,13 @@ class PostgreSQLMonitor:
 
     def _connect(self):
         import psycopg2
-        host     = self.cfg.get("host",     "localhost")
-        port     = self.cfg.get("port",     5432)
-        database = self.cfg.get("database", "postgres")
-        user     = self.cfg.get("user",     "postgres")
-        password = self.cfg.get("password", "")
-
         return psycopg2.connect(
-            host=host, port=port,
-            database=database, user=user,
-            password=password, connect_timeout=5
+            host     = self.cfg.get("host",     "localhost"),
+            port     = self.cfg.get("port",     5432),
+            database = self.cfg.get("database", "postgres"),
+            user     = self.cfg.get("user",     "postgres"),
+            password = self.cfg.get("password", ""),
+            connect_timeout = 5,
         )
 
     def _query(self, sql):
@@ -62,17 +56,13 @@ class PostgreSQLMonitor:
     def check(self):
         if not self._available:
             return
-
-        # Check if reachable
         try:
             conn = self._connect()
             conn.close()
             is_up = True
         except Exception:
             is_up = False
-
         key = "pg_down"
-
         if not is_up:
             if self.verifier.check(key, True):
                 if self._was_up:
@@ -84,8 +74,6 @@ class PostgreSQLMonitor:
                         level="critical", key=key
                     )
             return
-
-        # Recovered
         if not self._was_up:
             self._was_up = True
             self.alerter.reset_cooldown(key)
@@ -94,8 +82,6 @@ class PostgreSQLMonitor:
                 level="info"
             )
         self.verifier.clear(key)
-
-        # Connection count
         max_conn = self.cfg.get("max_connections", 80)
         result   = self._query("SELECT count(*) FROM pg_stat_activity;")
         if result:
@@ -106,16 +92,10 @@ class PostgreSQLMonitor:
                     f"Active: `{count}`\nThreshold: `{max_conn}`",
                     level="warning", key="pg_conn"
                 )
-
-        # DB size growth alert
         db = self.cfg.get("database", "postgres")
-        size_result = self._query(
-            f"SELECT pg_size_pretty(pg_database_size('{db}'));"
-        )
+        size_result = self._query(f"SELECT pg_size_pretty(pg_database_size('{db}'));")
         if size_result:
             logger.debug(f"[PostgreSQL] DB size: {size_result[0]}")
-
-        # Long running queries
         long_query_sec = self.cfg.get("long_query_seconds", 30)
         long_result = self._query(
             f"SELECT count(*) FROM pg_stat_activity "
@@ -128,8 +108,6 @@ class PostgreSQLMonitor:
                 f"`{count}` quer{'y' if count == 1 else 'ies'} running > {long_query_sec}s",
                 level="warning", key="pg_long_query"
             )
-
-        # Replication lag (if replica)
         if self.cfg.get("check_replication", False):
             rep = self._query(
                 "SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))::INT;"
@@ -153,7 +131,6 @@ class PostgreSQLMonitor:
             is_up = True
         except Exception:
             is_up = False
-
         result = {"up": is_up}
         if is_up:
             db    = self.cfg.get("database", "postgres")

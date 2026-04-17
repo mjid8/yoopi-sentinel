@@ -16,7 +16,7 @@ class ServicesMonitor:
 
     def _check_http(self, name, url, expected_status=200, timeout=5):
         try:
-            r = requests.get(url, timeout=timeout)
+            r  = requests.get(url, timeout=timeout)
             ok = r.status_code == expected_status
             return ok, r.status_code, None
         except requests.exceptions.ConnectionError:
@@ -29,9 +29,7 @@ class ServicesMonitor:
     def _check_script(self, name, path, expected_exit=0):
         import subprocess
         try:
-            r = subprocess.run(
-                [path], capture_output=True, timeout=30
-            )
+            r = subprocess.run([path], capture_output=True, timeout=30)
             return r.returncode == expected_exit, r.returncode, r.stdout.decode()[:200]
         except Exception as e:
             return False, str(e), None
@@ -70,9 +68,7 @@ class ServicesMonitor:
             expected_status = svc.get("expected_status", 200)
             timeout         = svc.get("timeout", 5)
             key             = f"svc_{name}"
-
-            ok, status, _ = self._check_http(name, url, expected_status, timeout)
-
+            ok, status, _   = self._check_http(name, url, expected_status, timeout)
             if not ok:
                 if self.verifier.check(key, True):
                     if self._was_up.get(name, True):
@@ -96,9 +92,7 @@ class ServicesMonitor:
             name       = check.get("name", "unknown")
             check_type = check.get("check", "http")
             key        = f"custom_{name}"
-
             ok, status, output = self._run_check(check_type, check)
-
             if not ok:
                 if self.verifier.check(key, True):
                     if self._was_up.get(name, True):

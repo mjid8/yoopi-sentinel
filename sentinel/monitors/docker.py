@@ -9,19 +9,16 @@ logger = logging.getLogger("sentinel.monitors.docker")
 
 class DockerMonitor:
     def __init__(self, config, alerter):
-        self.cfg     = config["monitors"].get("docker", {})
-        self.name    = config["name"]
-        self.alerter = alerter
-        self.client  = None
+        self.cfg      = config["monitors"].get("docker", {})
+        self.name     = config["name"]
+        self.alerter  = alerter
+        self.client   = None
         self.verifier = Verifier()
-
         self._container_states   = {}
         self._container_restarts = defaultdict(list)
         self._available          = False
-
         if not self.cfg.get("enabled", False):
             return
-
         self._init_client()
 
     def _init_client(self):
@@ -48,27 +45,21 @@ class DockerMonitor:
     def check_containers(self):
         if not self._available:
             return []
-
         now        = time.time()
         containers = self._get_containers()
         expected   = self.cfg.get("expected", [])
-
         for c in containers:
-            name    = c.name
-            status  = c.status   # "running", "exited", "restarting", etc.
-            is_up   = status == "running"
-            key     = f"container_{name}"
-            prev    = self._container_states.get(name)
-
-            # Container went down
+            name   = c.name
+            status = c.status
+            is_up  = status == "running"
+            key    = f"container_{name}"
+            prev   = self._container_states.get(name)
             if prev == "running" and not is_up:
                 if self.verifier.check(key, True):
                     self.alerter.send(
                         f"🚨 *Container Down*\n`{name}`\nStatus: `{status}`",
                         level="critical", key=key
                     )
-
-            # Container recovered
             elif prev and prev != "running" and is_up:
                 self.alerter.reset_cooldown(key)
                 self.alerter.send(
@@ -76,19 +67,16 @@ class DockerMonitor:
                     level="info", key=f"{key}_recovered"
                 )
                 self.verifier.clear(key)
-
-            # Crash loop detection
             if is_up:
+                # temperrary fix dont touch
                 try:
-                    # Check if it restarted recently via uptime in attrs
                     started = c.attrs.get("State", {}).get("StartedAt", "")
                     if started:
                         from datetime import datetime, timezone
                         start_dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
                         age_secs = (datetime.now(timezone.utc) - start_dt).total_seconds()
-                        if age_secs < 120:   # started less than 2 min ago
+                        if age_secs < 120:
                             self._container_restarts[name].append(now)
-                            # Keep only restarts in last 10 min
                             self._container_restarts[name] = [
                                 t for t in self._container_restarts[name]
                                 if now - t < 600
@@ -102,10 +90,7 @@ class DockerMonitor:
                                 self._container_restarts[name] = []
                 except Exception:
                     pass
-
             self._container_states[name] = status
-
-        # Check expected containers that might be missing entirely
         running_names = {c.name for c in containers}
         for expected_name in expected:
             if expected_name not in running_names:
@@ -115,18 +100,14 @@ class DockerMonitor:
                         f"🚨 *Expected Container Missing*\n`{expected_name}` not found on this server",
                         level="critical", key=key
                     )
-
         return containers
 
     def snapshot(self):
-        """Return container status for /status command."""
         if not self._available:
             return None
-
         containers = self._get_containers()
         up   = [c.name for c in containers if c.status == "running"]
         down = [(c.name, c.status) for c in containers if c.status != "running"]
-
         return {
             "total": len(containers),
             "up":    up,

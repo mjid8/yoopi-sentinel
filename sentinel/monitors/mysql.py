@@ -10,13 +10,10 @@ class MySQLMonitor:
         self.name     = config["name"]
         self.alerter  = alerter
         self.verifier = Verifier()
-
         self._was_up    = True
         self._available = False
-
         if not self.cfg.get("enabled", False):
             return
-
         self._init()
 
     def _init(self):
@@ -33,11 +30,11 @@ class MySQLMonitor:
     def _connect(self):
         import pymysql
         return pymysql.connect(
-            host     = self.cfg.get("host",     "localhost"),
-            port     = self.cfg.get("port",     3306),
-            database = self.cfg.get("database", "mysql"),
-            user     = self.cfg.get("user",     "root"),
-            password = self.cfg.get("password", ""),
+            host            = self.cfg.get("host",     "localhost"),
+            port            = self.cfg.get("port",     3306),
+            database        = self.cfg.get("database", "mysql"),
+            user            = self.cfg.get("user",     "root"),
+            password        = self.cfg.get("password", ""),
             connect_timeout = 5,
         )
 
@@ -57,16 +54,13 @@ class MySQLMonitor:
     def check(self):
         if not self._available:
             return
-
         try:
             conn = self._connect()
             conn.close()
             is_up = True
         except Exception:
             is_up = False
-
         key = "mysql_down"
-
         if not is_up:
             if self.verifier.check(key, True):
                 if self._was_up:
@@ -78,7 +72,6 @@ class MySQLMonitor:
                         level="critical", key=key
                     )
             return
-
         if not self._was_up:
             self._was_up = True
             self.alerter.reset_cooldown(key)
@@ -87,8 +80,6 @@ class MySQLMonitor:
                 level="info"
             )
         self.verifier.clear(key)
-
-        # Thread count (connections)
         max_conn = self.cfg.get("max_connections", 80)
         result   = self._query("SHOW STATUS LIKE 'Threads_connected';")
         if result:
@@ -99,24 +90,20 @@ class MySQLMonitor:
                     f"Connected threads: `{count}`\nThreshold: `{max_conn}`",
                     level="warning", key="mysql_conn"
                 )
-
-        # Slow queries
         slow = self._query("SHOW STATUS LIKE 'Slow_queries';")
         if slow:
-            slow_count        = int(slow[1])
-            slow_threshold    = self.cfg.get("slow_query_threshold", 10)
+            slow_count     = int(slow[1])
+            slow_threshold = self.cfg.get("slow_query_threshold", 10)
             if slow_count > slow_threshold:
                 self.alerter.send(
                     f"🗄️ *MySQL — Slow Queries*\n"
                     f"Count: `{slow_count}`\nThreshold: `{slow_threshold}`",
                     level="warning", key="mysql_slow"
                 )
-
-        # Replication lag
         if self.cfg.get("check_replication", False):
             rep = self._query("SHOW SLAVE STATUS;")
             if rep:
-                lag = rep[32] if len(rep) > 32 else None  # Seconds_Behind_Master
+                lag           = rep[32] if len(rep) > 32 else None
                 lag_threshold = self.cfg.get("replication_lag_seconds", 60)
                 if lag and int(lag) > lag_threshold:
                     self.alerter.send(
@@ -134,7 +121,6 @@ class MySQLMonitor:
             is_up = True
         except Exception:
             is_up = False
-
         result = {"up": is_up}
         if is_up:
             threads = self._query("SHOW STATUS LIKE 'Threads_connected';")
