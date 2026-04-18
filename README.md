@@ -1,130 +1,123 @@
-# ☀️ Yoopi Sentinel
+# yoopi sentinel ☀️
 
-lightweight server monitoring straight to your telegram no dashboards no complexity just create a bot and go
+lightweight server monitoring that sends alerts straight to your telegram
+built this for fun and to learn — ended up actually using it in production
 
 ---
 
 ## why i made this
 
-i got tired of tools that are either too complex or too expensive so i built my own
-
-- prometheus + grafana takes days to setup
-- datadog costs $15-30/server/month
-- most tools spam false alerts or go silent when network drops
-- sentinel tries to fix all that
+- prometheus and grafana take forever to set up
+- datadog costs money every month
+- most tools spam false alerts or go silent when something actually breaks
+- wanted something simple i could install in 2 minutes and forget about
 
 ---
 
 ## what it monitors
 
-**always included**
-- cpu ram disk temperature
-- network connectivity
-- processes — alerts if something dies
-- log files — keyword pattern alerts
+system — cpu ram disk temperature network connections uptime
 
-**optional**
-- docker containers crash loops detection
-- postgresql mysql redis
-- custom http checks custom scripts
+optional — docker containers postgresql mysql redis
+
+services — any http or https endpoint you want to check
+
+custom — run any script and alert if it fails
 
 ---
 
-## the never lie system
+## install
 
-i cant promise 100% but i tried my best
+requires python 3 on your server
 
-before any alert sentinel checks twice — if cpu spikes for 10 seconds and recovers it wont wake you up at 3am
+```bash
+pip install yoopi-sentinel --break-system-packages
+sentinel init
+```
 
-if network drops it buffers the alerts and sends a summary when its back
+or if you want one command that handles everything including python check
 
-every /status shows how old the data is so you always know if youre looking at fresh info or not
+```bash
+curl -sSL https://raw.githubusercontent.com/mjid8/yoopi-sentinel/main/install.sh | bash
+```
 
 ---
 
-## quick start
+## what the wizard does
 
-    pip install yoopi-sentinel
+- asks your server name and telegram bot token
+- auto detects your chat id — no manual lookup
+- asks what is running on this server
+- installs required extras automatically
+- sets up systemd service so it runs forever in background
 
-with extras
+---
 
-    pip install yoopi-sentinel[docker]
-    pip install yoopi-sentinel[postgresql]
-    pip install yoopi-sentinel[redis]
-    pip install yoopi-sentinel[full]
+## after install
 
-then run
-
-    sentinel init
-
-wizard asks your server name sets up telegram bot and generates the config automatically
-
-then
-
-    sentinel start
-
-thats it
+```bash
+systemctl status sentinel       # is it running
+journalctl -u sentinel -f       # live logs
+sentinel update                 # pull latest version
+```
 
 ---
 
 ## telegram commands
 
-once running send to your bot
+/status   full server report — ram disk cpu uptime processes
+/top      top 10 processes by cpu and ram
+/disk     disk usage breakdown
+/net      network connections and ports
+/help     all commands
 
-    /status    full server status
-    /help      available commands
-
----
-
-## run as a service so it survives reboots
-
-    sudo systemctl enable sentinel
-    sudo systemctl start sentinel
+reconfigure anytime with sentinel init
 
 ---
 
-## one line install for fresh servers
+## the never lie system
 
-    curl -sSL https://install.yoopi.tech/sentinel | bash
+most monitoring tools go silent when network drops or send false alerts from 10 second spikes
 
-detects your os installs python if missing sets everything up automatically
+sentinel checks twice before alerting — if cpu hits 90% for 10 seconds and recovers it wont wake you up
 
----
+if network drops it buffers all alerts locally and sends a summary when connection comes back
 
-## important
-
-sentinel is read only — it never touches your system never restarts services never opens ports just watches and alerts
+every status shows how fresh the data is so you always know if youre looking at current info
 
 ---
 
 ## os support
 
-ubuntu debian centos fedora alpine raspberry pi
-
----
-
-## faq
-
-**is my data private** yes your bot your data nothing goes through yoopi servers
-
-**does it work offline** no needs internet to send alerts but buffers them if connection drops temporarily
-
-**will it slow my server** no its designed to be invisible uses almost nothing
+| os | tested |
+|---|---|
+| ubuntu 20 22 24 | ✅ |
+| debian 11 12 | ✅ |
+| centos 8 rocky 9 | ✅ |
+| fedora 38+ | ✅ |
+| alpine | ✅ |
+| raspberry pi | ✅ |
 
 ---
 
 ## roadmap
 
-- [x] cpu ram disk temperature network processes logs
+- [x] cpu ram disk temperature network
 - [x] docker postgresql mysql redis
 - [x] double verification no false alarms
 - [x] offline detection missed alerts summary
+- [x] systemd auto setup
+- [x] pip install from pypi
 - [ ] sentinel-watch external watchdog
-- [ ] kubernetes mongodb
-- [ ] more alert channels slack discord email
+- [ ] kubernetes
+- [ ] mongodb
+- [ ] slack discord email alerts
 
 ---
 
-built by majid — [yoopi technologies](https://yoopitech.com)
+## about
 
-*leave a ⭐ if this helped and open an issue if you have ideas*
+built by majid as a learning project that got serious
+[yoopi technologies](https://yoopitech.com) — gpl v3
+
+leave a ⭐ if it helped and open an issue if something breaks
