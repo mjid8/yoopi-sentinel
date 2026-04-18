@@ -1,11 +1,11 @@
 # yoopi sentinel ☀️
 
 lightweight server monitoring that sends alerts straight to your telegram
-built this for fun and to learn — ended up actually using it in production
+built this for fun and to learn
 
 ---
 
-## why i made this
+# why i made this
 
 - prometheus and grafana take forever to set up
 - datadog costs money every month
@@ -14,7 +14,7 @@ built this for fun and to learn — ended up actually using it in production
 
 ---
 
-## what it monitors
+# what it monitors
 
 system — cpu ram disk temperature network connections uptime
 
@@ -26,7 +26,7 @@ custom — run any script and alert if it fails
 
 ---
 
-## install
+# install
 
 requires python 3 on your server
 
@@ -43,7 +43,7 @@ curl -sSL https://raw.githubusercontent.com/mjid8/yoopi-sentinel/main/install.sh
 
 ---
 
-## what the wizard does
+# what the wizard does
 
 - asks your server name and telegram bot token
 - auto detects your chat id — no manual lookup
@@ -53,7 +53,7 @@ curl -sSL https://raw.githubusercontent.com/mjid8/yoopi-sentinel/main/install.sh
 
 ---
 
-## after install
+# after install
 
 ```bash
 systemctl status sentinel       # is it running
@@ -63,7 +63,7 @@ sentinel update                 # pull latest version
 
 ---
 
-## telegram commands
+# telegram commands
 
 /status   full server report — ram disk cpu uptime processes
 /top      top 10 processes by cpu and ram
@@ -75,7 +75,7 @@ reconfigure anytime with sentinel init
 
 ---
 
-## the never lie system
+# the never lie system (well not 100% but i tried my best and will keep improving)
 
 most monitoring tools go silent when network drops or send false alerts from 10 second spikes
 
@@ -115,9 +115,10 @@ every status shows how fresh the data is so you always know if youre looking at 
 
 ---
 
-## about
+# about
 
-built by majid as a learning project that got serious
+built by majid as a learning project 
+got some free resources and help from
 [yoopi technologies](https://yoopitech.com) — gpl v3
 
 leave a ⭐ if it helped and open an issue if something breaks
