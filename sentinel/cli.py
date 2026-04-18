@@ -2,6 +2,7 @@ import click
 import sys
 import os
 import subprocess
+import shutil
 import requests
 import yaml
 
@@ -331,20 +332,66 @@ def init():
 
     click.echo("\n✅ Config saved to sentinel.yml")
 
-    extras = []
-    if has_docker: extras.append("docker")
-    if has_redis:  extras.append("redis")
-    if has_pg:     extras.append("postgresql")
-    if has_mysql:  extras.append("mysql")
-    if extras:
-        click.echo("\n📦 Install required extras:")
-        for extra in extras:
-            click.echo(f"   pip install yoopi-sentinel[{extra}]")
-        if len(extras) > 1:
-            click.echo(f"\n   Or all at once:")
-            click.echo(f"   pip install yoopi-sentinel[{','.join(extras)}]")
+    for flag, extra, label in [
+        (has_docker, "docker",     "Docker"),
+        (has_redis,  "redis",      "Redis"),
+        (has_pg,     "postgresql", "PostgreSQL"),
+        (has_mysql,  "mysql",      "MySQL"),
+    ]:
+        if flag:
+            click.echo(f"📦 Installing {label} support...")
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install",
+                 f"yoopi-sentinel[{extra}]", "--break-system-packages"],
+                capture_output=True,
+            )
 
-    click.echo("\n🚀 Run 'sentinel start' to begin monitoring!")
+    # ── 14. Systemd service ───────────────────────────────────────
+    click.echo("")
+    if click.confirm("Install as background service?", default=True):
+        sentinel_bin = shutil.which("sentinel") or sys.argv[0]
+        current_user = os.getenv("USER") or os.getenv("LOGNAME") or "root"
+        home_dir = os.path.expanduser("~")
+        service_content = f"""[Unit]
+Description=Yoopi Sentinel
+After=network.target
+
+[Service]
+Type=simple
+User={current_user}
+WorkingDirectory={home_dir}
+ExecStart={sentinel_bin} start
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target
+"""
+        result = subprocess.run(
+            ["sudo", "tee", "/etc/systemd/system/sentinel.service"],
+            input=service_content,
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            if "permission denied" in result.stderr.lower():
+                click.echo("❌ Permission denied — run with sudo or as root.")
+            else:
+                click.echo(f"❌ Failed to write service file: {result.stderr.strip()}")
+            return
+        for cmd, label in [
+            (["sudo", "systemctl", "daemon-reload"], "Reloading systemd daemon"),
+            (["sudo", "systemctl", "enable", "sentinel"], "Enabling sentinel on boot"),
+            (["sudo", "systemctl", "restart", "sentinel"], "Starting sentinel"),
+        ]:
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode != 0:
+                click.echo(f"❌ {label} failed: {r.stderr.strip()}")
+                return
+        click.echo("✅ Sentinel is running as a service")
+    else:
+        click.echo("\n🚀 Run 'sentinel start' to begin monitoring!")
     click.echo("─" * 40 + "\n")
 
 
@@ -425,91 +472,6 @@ def _start_daemon(config_path):
             os.remove(_PID_FILE)
 
 
-@cli.command("install")
-@click.option("--config", "-c", default=None,
-              help="Path to config file the service will use (default: ~/sentinel.yml)")
-def install(config):
-    """Install Sentinel as a systemd service."""
-    click.echo("\n🔧 Sentinel — systemd installer\n")
-    has_systemd = _has_systemd()
-
-    # Resolve the real user (handle `sudo sentinel install`)
-    sudo_user = os.environ.get("SUDO_USER")
-    if sudo_user:
-        current_user = sudo_user
-        home_dir = os.path.expanduser(f"~{sudo_user}")
-    else:
-        try:
-            current_user = subprocess.check_output(["whoami"], text=True).strip()
-        except Exception:
-            current_user = os.environ.get("USER", "root")
-        home_dir = os.path.expanduser("~")
-
-    if config is None:
-        config = os.path.join(home_dir, "sentinel.yml")
-
-    if not has_systemd:
-        _print_manual_instructions(config)
-        return
-    sentinel_bin = _which("sentinel") or os.path.abspath(sys.argv[0])
-    if not sentinel_bin or not os.path.isfile(sentinel_bin):
-        click.echo("❌ Could not find the 'sentinel' binary in PATH.")
-        click.echo("   Make sure yoopi-sentinel is installed: pip install yoopi-sentinel")
-        sys.exit(1)
-    click.echo(f"  User:    {current_user}")
-    click.echo(f"  Binary:  {sentinel_bin}")
-    click.echo(f"  Config:  {config}")
-    click.echo(f"  Service: {_SERVICE_PATH}\n")
-    if not os.path.exists(config):
-        click.echo(f"⚠️  Config file not found at {config}")
-        click.echo(f"   Run 'sentinel init' first to create it, then re-run this command.")
-        click.echo(f"   Continuing to write the service unit anyway...\n")
-    service_content = f"""[Unit]
-Description=Yoopi Sentinel — Server Monitoring
-After=network.target
-StartLimitIntervalSec=60
-StartLimitBurst=3
-
-[Service]
-Type=simple
-User={current_user}
-WorkingDirectory={home_dir}
-ExecStart={sentinel_bin} start --config {config}
-Restart=on-failure
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-"""
-    try:
-        with open(_SERVICE_PATH, "w") as f:
-            f.write(service_content)
-        click.echo(f"✅ Service file written to {_SERVICE_PATH}")
-    except PermissionError:
-        click.echo(f"❌ Permission denied writing to {_SERVICE_PATH}")
-        click.echo(f"   Run this command with sudo.")
-        sys.exit(1)
-    steps = [
-        (["systemctl", "daemon-reload"],         "Reloading systemd daemon"),
-        (["systemctl", "enable", _SERVICE_NAME], f"Enabling {_SERVICE_NAME} on boot"),
-        (["systemctl", "start",  _SERVICE_NAME], f"Starting {_SERVICE_NAME}"),
-    ]
-    for cmd, label in steps:
-        click.echo(f"  ⏳ {label}...")
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            click.echo(f"  ❌ Failed: {result.stderr.strip()}")
-            sys.exit(1)
-        click.echo(f"  ✅ Done")
-    click.echo("\n── Service status ──────────────────────")
-    subprocess.run(["systemctl", "status", _SERVICE_NAME, "--no-pager", "-l"])
-    click.echo("\n✅ Sentinel is installed and running as a system service.")
-    click.echo(f"   Logs:    journalctl -u {_SERVICE_NAME} -f")
-    click.echo(f"   Stop:    systemctl stop {_SERVICE_NAME}")
-    click.echo(f"   Restart: systemctl restart {_SERVICE_NAME}\n")
-
 
 @cli.command("update")
 def update():
@@ -587,44 +549,6 @@ def _has_systemd():
 def _service_exists():
     return os.path.exists(_SERVICE_PATH)
 
-
-def _which(binary):
-    try:
-        path = subprocess.check_output(["which", binary], text=True).strip()
-        return path if path else None
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
-
-
-def _print_manual_instructions(config_path):
-    sentinel_bin = _which("sentinel") or "/usr/local/bin/sentinel"
-    try:
-        current_user = subprocess.check_output(["whoami"], text=True).strip()
-    except Exception:
-        current_user = "your-user"
-    click.echo("⚠️  systemd not detected on this system.\n")
-    click.echo("To run Sentinel as a background service, choose one of:\n")
-    click.echo("── Option 1: screen / tmux ──────────────────────")
-    click.echo(f"   screen -dmS sentinel sentinel start --config {config_path}")
-    click.echo(f"   # or")
-    click.echo(f"   tmux new-session -d -s sentinel 'sentinel start --config {config_path}'")
-    click.echo("\n── Option 2: nohup ──────────────────────────────")
-    click.echo(f"   nohup sentinel start --config {config_path} > /tmp/sentinel.log 2>&1 &")
-    click.echo("\n── Option 3: manual service file ────────────────")
-    click.echo(f"   Save this to /etc/systemd/system/sentinel.service:\n")
-    click.echo(f"   [Unit]")
-    click.echo(f"   Description=Yoopi Sentinel")
-    click.echo(f"   After=network.target")
-    click.echo(f"")
-    click.echo(f"   [Service]")
-    click.echo(f"   Type=simple")
-    click.echo(f"   User={current_user}")
-    click.echo(f"   ExecStart={sentinel_bin} start --config {config_path}")
-    click.echo(f"   Restart=on-failure")
-    click.echo(f"")
-    click.echo(f"   [Install]")
-    click.echo(f"   WantedBy=multi-user.target")
-    click.echo()
 
 
 if __name__ == "__main__":

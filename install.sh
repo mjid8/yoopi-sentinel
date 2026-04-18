@@ -224,71 +224,11 @@ run_init() {
     "$SENTINEL_BIN" init
 }
 
-# ── Step 7 — systemd service ─────────────────────────────────────
+# ── Step 7 — done ────────────────────────────────────────────────
 offer_service_install() {
-    step "Step 7/7  Systemd service"
-
-    if ! command -v systemctl &>/dev/null; then
-        warn "systemd not available on this system."
-        info "To run Sentinel in the background you can use:"
-        info "  nohup sentinel start --config sentinel.yml > /tmp/sentinel.log 2>&1 &"
-        info "  — or run:  sentinel start --daemon"
-        return
-    fi
-
-    echo ""
-    if ask_yes_no "Install Sentinel as a systemd service (auto-start on boot)?" y; then
-        echo ""
-        if sudo -n true 2>/dev/null; then
-            info "Writing /etc/systemd/system/sentinel.service..."
-            sudo tee /etc/systemd/system/sentinel.service > /dev/null << EOF
-[Unit]
-Description=Yoopi Sentinel — Server Monitoring
-After=network.target
-StartLimitIntervalSec=60
-StartLimitBurst=3
-
-[Service]
-Type=simple
-User=$USER
-WorkingDirectory=$HOME
-ExecStart=$SENTINEL_BIN start
-Restart=on-failure
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-EOF
-            ok "Service file written"
-            info "Reloading systemd daemon..."
-            sudo systemctl daemon-reload
-            ok "Done"
-            info "Enabling sentinel on boot..."
-            sudo systemctl enable sentinel
-            ok "Done"
-            info "Starting sentinel..."
-            sudo systemctl start sentinel
-            ok "Done"
-            echo ""
-            sudo systemctl status sentinel --no-pager
-            echo ""
-            ok "Sentinel is running as a system service."
-            info "Logs:    journalctl -u sentinel -f"
-            info "Stop:    systemctl stop sentinel"
-            info "Restart: systemctl restart sentinel"
-        else
-            warn "This step requires sudo to write the systemd service file."
-            info "Run the following command to complete the setup:"
-            echo ""
-            echo "    sudo sentinel install"
-            echo ""
-        fi
-    else
-        ok "Skipping systemd install."
-        info "You can set it up later with:  sudo sentinel install"
-    fi
+    step "Step 7/7  Next steps"
+    ok "Installation complete."
+    info "Run 'sentinel init' to configure and start as a service"
 }
 
 # ── Helper: yes/no prompt ─────────────────────────────────────────
@@ -325,12 +265,11 @@ print_summary() {
     echo ""
     echo -e "${BOLD}Available commands:${NC}"
     echo ""
+    echo -e "  ${GREEN}sentinel init${NC}               Configure and install as a service"
     echo -e "  ${GREEN}sentinel start${NC}              Start monitoring (foreground)"
     echo -e "  ${GREEN}sentinel start --daemon${NC}     Start monitoring (background)"
     echo -e "  ${GREEN}sentinel status${NC}             Quick terminal status check"
-    echo -e "  ${GREEN}sentinel install${NC}            Install as systemd service"
     echo -e "  ${GREEN}sentinel update${NC}             Update to latest version"
-    echo -e "  ${GREEN}sentinel init${NC}               Re-run setup wizard"
     echo ""
     echo -e "  ${YELLOW}Note:${NC} If 'sentinel' is not found, run:  source ~/.bashrc"
     echo ""
