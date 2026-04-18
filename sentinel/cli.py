@@ -504,15 +504,15 @@ def update():
     if _has_systemd() and _service_exists():
         click.echo(f"\n🔄 Restarting systemd service '{_SERVICE_NAME}'...")
         result = subprocess.run(
-            ["systemctl", "restart", _SERVICE_NAME],
+            ["sudo", "systemctl", "restart", _SERVICE_NAME],
             capture_output=True, text=True,
         )
         if result.returncode != 0:
             click.echo(f"⚠️  Service restart failed: {result.stderr.strip()}")
-            click.echo(f"   Restart manually: systemctl restart {_SERVICE_NAME}")
+            click.echo(f"   Run 'sudo systemctl restart sentinel' manually to apply the update")
         else:
             click.echo(f"✅ Service restarted")
-            subprocess.run(["systemctl", "status", _SERVICE_NAME, "--no-pager", "-l"])
+            subprocess.run(["sudo", "systemctl", "status", _SERVICE_NAME, "--no-pager", "-l"])
     else:
         click.echo("\n   No systemd service found — restart Sentinel manually.")
     click.echo()
