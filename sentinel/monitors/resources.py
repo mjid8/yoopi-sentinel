@@ -228,7 +228,11 @@ class ResourceMonitor:
             procs = []
             for p in psutil.process_iter(["name", "cpu_percent", "memory_percent"]):
                 try:
-                    procs.append(p.info)
+                    info = p.info
+                    name = info.get("name") or ""
+                    if name.startswith("[") and name.endswith("]"):
+                        continue
+                    procs.append(info)
                 except Exception:
                     pass
             procs = sorted(procs, key=lambda x: x.get("cpu_percent") or 0, reverse=True)

@@ -1,10 +1,39 @@
 from setuptools import setup, find_packages
+from pathlib import Path
+
+long_description = Path("README.md").read_text(encoding="utf-8")
+
+# Read version from single source of truth
+version = {}
+exec(Path("sentinel/__init__.py").read_text(encoding="utf-8"), version)
 
 setup(
     name="yoopi-sentinel",
-    version="0.1.0",
-    author="Yoopi Technologies",
+    version=version["__version__"],
+    author="Majid",
+    author_email="majidbenaboud@gmail.com",
     description="Honest, lightweight server monitoring with Telegram alerts",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/mjid8/yoopi-sentinel",
+    license="GPL-3.0-or-later",
+    keywords="monitoring telegram server infrastructure devops",
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+        "Operating System :: POSIX :: Linux",
+        "Topic :: System :: Monitoring",
+        "Topic :: System :: Systems Administration",
+        "Intended Audience :: System Administrators",
+        "Intended Audience :: Developers",
+        "Environment :: No Input/Output (Daemon)",
+    ],
     packages=find_packages(),
     python_requires=">=3.7",
     install_requires=[
