@@ -37,6 +37,17 @@ def _ask_overwrite(timeout=10):
         except EOFError:
             return False
 
+SENTINEL_ART = """
+█████     ███                      ████
+░░███     ░░░                      ░░███
+ ███████   ████  ████████    ██████  ░███
+░░░███░   ░░███ ░░███░░███  ███░░███ ░███
+  ░███     ░███  ░███ ░███ ░███████  ░███
+  ░███ ███ ░███  ░███ ░███ ░███░░░   ░███
+  ░░█████  █████ ████ █████░░██████  █████
+   ░░░░░  ░░░░░ ░░░░ ░░░░░  ░░░░░░  ░░░░░
+"""
+
 _PID_FILE     = "/tmp/sentinel.pid"
 _SERVICE_NAME = "sentinel"
 _SERVICE_PATH = f"/etc/systemd/system/{_SERVICE_NAME}.service"
@@ -57,6 +68,8 @@ def init():
             click.echo("Keeping existing sentinel.yml.")
             return
 
+    click.echo(click.style(SENTINEL_ART, fg="yellow", bold=True))
+    click.echo(click.style("  ☀️  jolly cooperation — watching your servers so you dont have to  ☀️\n", fg="yellow"))
     click.echo("\n☀️  Welcome to Yoopi Sentinel Setup\n")
     click.echo("─" * 40)
 
@@ -400,6 +413,7 @@ WantedBy=multi-user.target
 @click.option("--daemon", "-d", is_flag=True,           help="Fork to background and write PID to /tmp/sentinel.pid")
 def start(config, daemon):
     """Start the Sentinel monitoring agent."""
+    click.echo(click.style("  ☀️  Yoopi Sentinel — jolly cooperation\n", fg="yellow"))
     config_path = os.path.abspath(config)
     if not os.path.exists(config_path):
         click.echo(f"❌ Config file not found: {config_path}")
