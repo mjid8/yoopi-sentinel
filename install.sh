@@ -64,7 +64,7 @@ detect_os() {
         elif command -v yum     &>/dev/null; then PKG_MGR="yum"
         elif command -v pacman  &>/dev/null; then PKG_MGR="pacman"
         else
-            err "Cannot detect package manager. Install python3 and pip3 manually, then re-run."
+            err "Cannot detect package manager. Install python3 and pipx manually, then re-run."
         fi
     fi
 }
@@ -98,16 +98,16 @@ pkg_name_python3() {
     esac
 }
 
-pkg_name_pip() {
+pkg_name_pipx() {
     case "$PKG_MGR" in
-        pacman) echo "python-pip" ;;
-        *)      echo "python3-pip" ;;
+        pacman) echo "python-pipx" ;;
+        *)      echo "pipx" ;;
     esac
 }
 
 # ── Step 1 — Python 3 ────────────────────────────────────────────
 check_python() {
-    step "Step 1/7  Python 3"
+    step "Step 1/6  Python 3"
     if command -v python3 &>/dev/null; then
         local ver
         ver=$(python3 --version 2>&1)
@@ -119,21 +119,41 @@ check_python() {
     fi
 }
 
-# ── Step 2 — pip ─────────────────────────────────────────────────
-check_pip() {
-    step "Step 2/7  pip"
-    if command -v pip3 &>/dev/null; then
-        ok "pip3 already installed"
+# ── Step 2 — pipx ────────────────────────────────────────────────
+check_pipx() {
+    step "Step 2/6  pipx"
+    if command -v pipx &>/dev/null; then
+        ok "pipx already installed"
     else
-        warn "pip3 not found — installing..."
-        pkg_install "$(pkg_name_pip)"
-        ok "pip3 installed"
+        warn "pipx not found — installing..."
+        case "$PKG_MGR" in
+            apt)
+                sudo apt update -qq
+                sudo apt install pipx -y
+                ;;
+            dnf|yum)
+                sudo "$PKG_MGR" install pipx -y
+                ;;
+            pacman)
+                sudo pacman -S python-pipx --noconfirm
+                ;;
+            *)
+                err "Unsupported package manager for pipx install: $PKG_MGR"
+                ;;
+        esac
+        ok "pipx installed"
     fi
+
+    info "Ensuring pipx PATH is configured..."
+    pipx ensurepath >/dev/null 2>&1 || true
+    # Make pipx's bin dir available to the rest of this script
+    export PATH="$HOME/.local/bin:$PATH"
+    ok "pipx PATH configured"
 }
 
 # ── Step 3 — Install yoopi-sentinel ──────────────────────────────
 install_sentinel() {
-    step "Step 3/7  Install yoopi-sentinel"
+    step "Step 3/6  Install yoopi-sentinel"
 
     if command -v sentinel &>/dev/null && \
        sentinel --version &>/dev/null 2>&1; then
@@ -142,76 +162,34 @@ install_sentinel() {
 
     info "Fetching from GitHub: ${REPO_URL}"
 
-    # Try with --break-system-packages first (needed on Debian/Ubuntu 23+)
-    if pip3 install "git+${REPO_URL}" \
-            --break-system-packages \
-            --force-reinstall \
-            --quiet \
-            2>/dev/null; then
+    if pipx install --force "git+${REPO_URL}" >/dev/null 2>&1; then
         ok "Installed successfully"
-    elif pip3 install "git+${REPO_URL}" \
-            --force-reinstall \
-            --quiet \
-            2>/dev/null; then
-        ok "Installed successfully (without --break-system-packages)"
     else
         # Show actual error on final attempt
         echo ""
-        pip3 install "git+${REPO_URL}" --force-reinstall || true
+        pipx install --force "git+${REPO_URL}" || true
         err "Installation failed. Check the output above for details."
     fi
 }
 
-# ── Step 4 — PATH ────────────────────────────────────────────────
-ensure_path() {
-    step "Step 4/7  PATH"
-    local bin_dir="$HOME/.local/bin"
-    local export_line="export PATH=\"\$HOME/.local/bin:\$PATH\""
-    local bashrc="$HOME/.bashrc"
-
-    # Always export for the current shell session
-    export PATH="$bin_dir:$PATH"
-
-    if grep -qF '.local/bin' "$bashrc" 2>/dev/null; then
-        ok "~/.local/bin already in $bashrc"
-    else
-        {
-            echo ""
-            echo "# Added by Yoopi Sentinel installer"
-            echo "$export_line"
-        } >> "$bashrc"
-        ok "Added ~/.local/bin to PATH in $bashrc"
-    fi
-
-    # Also check /etc/profile.d if running as root (system-wide install)
-    if [ "$(id -u)" = "0" ] && [ -d /etc/profile.d ]; then
-        if [ ! -f /etc/profile.d/sentinel-path.sh ]; then
-            echo 'export PATH="/root/.local/bin:$PATH"' \
-                | sudo tee /etc/profile.d/sentinel-path.sh > /dev/null
-            ok "Written /etc/profile.d/sentinel-path.sh"
-        fi
-    fi
-}
-
-# ── Step 5 — Verify binary ───────────────────────────────────────
+# ── Step 4 — Verify binary ───────────────────────────────────────
 SENTINEL_BIN=""
 
 verify_binary() {
-    step "Step 5/7  Verify"
+    step "Step 4/6  Verify"
     if command -v sentinel &>/dev/null; then
         SENTINEL_BIN="$(command -v sentinel)"
         ok "sentinel binary found at: ${SENTINEL_BIN}"
     else
         warn "sentinel not found in PATH after install."
-        warn "This usually means pip installed it to a directory not yet in your PATH."
-        warn "Try: source ~/.bashrc  — then re-run this installer."
+        warn "pipx installs to ~/.local/bin — open a new shell or run:  source ~/.bashrc"
         err "Cannot continue without sentinel in PATH."
     fi
 }
 
-# ── Step 6 — sentinel init ───────────────────────────────────────
+# ── Step 5 — sentinel init ───────────────────────────────────────
 run_init() {
-    step "Step 6/7  Configure"
+    step "Step 5/6  Configure"
 
     if [ -f sentinel.yml ]; then
         ok "Existing config found, skipping init — run 'sentinel init' manually to reconfigure"
@@ -224,9 +202,9 @@ run_init() {
     "$SENTINEL_BIN" init
 }
 
-# ── Step 7 — done ────────────────────────────────────────────────
+# ── Step 6 — done ────────────────────────────────────────────────
 offer_service_install() {
-    step "Step 7/7  Next steps"
+    step "Step 6/6  Next steps"
     ok "Installation complete."
     info "Run 'sentinel init' to configure and start as a service"
 }
@@ -288,9 +266,8 @@ main() {
     info "Detected OS: ${OS_NAME}  |  Package manager: ${PKG_MGR}"
 
     check_python
-    check_pip
+    check_pipx
     install_sentinel
-    ensure_path
     verify_binary
     run_init
     offer_service_install

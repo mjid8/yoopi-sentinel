@@ -342,17 +342,30 @@ def init():
 
     click.echo("\n✅ Config saved to sentinel.yml")
 
+    _EXTRA_PACKAGES = {
+        "docker":     ["docker>=6.0.0"],
+        "redis":      ["redis>=4.0.0"],
+        "postgresql": ["psycopg2-binary>=2.9.0"],
+        "mysql":      ["pymysql>=1.0.0"],
+    }
+    pipx_available = shutil.which("pipx") is not None
     for flag, extra, label in [
         (has_docker, "docker",     "Docker"),
         (has_redis,  "redis",      "Redis"),
         (has_pg,     "postgresql", "PostgreSQL"),
         (has_mysql,  "mysql",      "MySQL"),
     ]:
-        if flag:
-            click.echo(f"📦 Installing {label} support...")
+        if not flag:
+            continue
+        click.echo(f"📦 Installing {label} support...")
+        if pipx_available:
             subprocess.run(
-                [sys.executable, "-m", "pip", "install",
-                 f"yoopi-sentinel[{extra}]", "--break-system-packages"],
+                ["pipx", "inject", "yoopi-sentinel", *_EXTRA_PACKAGES[extra]],
+                capture_output=True,
+            )
+        else:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", f"yoopi-sentinel[{extra}]"],
                 capture_output=True,
             )
 
@@ -490,30 +503,34 @@ def _start_daemon(config_path):
 def update():
     """Update Sentinel to the latest version from GitHub."""
     click.echo("\n🔄 Updating Yoopi Sentinel...\n")
+    if not shutil.which("pipx"):
+        click.echo("❌ Update failed: pipx is not installed or not on PATH.")
+        click.echo("   Install pipx (e.g. 'sudo apt install pipx' or 'sudo dnf install pipx'),")
+        click.echo("   run 'pipx ensurepath', open a new shell, then retry 'sentinel update'.")
+        sys.exit(1)
     result = subprocess.run(
-        [
-            sys.executable, "-m", "pip", "install",
-            f"git+{_REPO_URL}",
-            "--break-system-packages",
-            "--force-reinstall",
-            "--quiet",
-        ],
+        ["pipx", "upgrade", "yoopi-sentinel"],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        click.echo("❌ Update failed:\n")
-        click.echo(result.stderr.strip())
+        click.echo("❌ Update failed — 'pipx upgrade yoopi-sentinel' did not succeed.\n")
+        stderr = result.stderr.strip()
+        stdout = result.stdout.strip()
+        if stderr:
+            click.echo(stderr)
+        if stdout:
+            click.echo(stdout)
+        click.echo("\n   Things to check:")
+        click.echo("   • Was Sentinel originally installed with pipx?")
+        click.echo("     If not, reinstall it first:  pipx install yoopi-sentinel")
+        click.echo("   • Is pipx itself on a current version?  pipx --version")
         sys.exit(1)
     click.echo("✅ Sentinel updated successfully")
-    ver_result = subprocess.run(
-        [sys.executable, "-m", "pip", "show", "yoopi-sentinel"],
-        capture_output=True, text=True,
-    )
-    for line in ver_result.stdout.splitlines():
-        if line.lower().startswith("version"):
-            click.echo(f"   {line}")
-            break
+    if result.stdout.strip():
+        for line in result.stdout.splitlines():
+            if line.strip():
+                click.echo(f"   {line}")
     if _has_systemd() and _service_exists():
         click.echo(f"\n🔄 Restarting systemd service '{_SERVICE_NAME}'...")
         ret = os.system("sudo systemctl restart sentinel")

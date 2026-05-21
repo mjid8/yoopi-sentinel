@@ -28,14 +28,29 @@ custom — run any script and alert if it fails
 
 # install
 
-requires python 3 on your server
+requires python 3 and pipx on your server
 
 ```bash
-pip install yoopi-sentinel --break-system-packages
+pipx install yoopi-sentinel
 sentinel init
 ```
 
-or if you want one command that handles everything including python check
+dont have pipx yet? install it first
+
+```bash
+# ubuntu / debian
+sudo apt install pipx -y && pipx ensurepath
+
+# centos / fedora / rocky
+sudo dnf install pipx -y && pipx ensurepath
+
+# arch / manjaro
+sudo pacman -S python-pipx --noconfirm && pipx ensurepath
+```
+
+open a new shell after `pipx ensurepath` so `~/.local/bin` is on your PATH, then run the install command above
+
+or if you want one command that handles everything including python and pipx
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/mjid8/yoopi-sentinel/main/install.sh | bash
@@ -107,7 +122,7 @@ every status shows how fresh the data is so you always know if youre looking at 
 - [x] double verification no false alarms
 - [x] offline detection missed alerts summary
 - [x] systemd auto setup
-- [x] pip install from pypi
+- [x] pipx install from pypi
 - [ ] sentinel-watch external watchdog
 - [ ] kubernetes
 - [ ] mongodb
